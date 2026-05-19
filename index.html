@@ -96,21 +96,43 @@
       </svg>
     );
 
+    const LogoutIcon = () => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+      </svg>
+    );
+
+    const KeyIcon = () => (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+    );
+
     function App() {
+      // === ESTADO DE AUTENTICACIÓN ===
+      const [isLoggedIn, setIsLoggedIn] = useState(() => {
+        return sessionStorage.getItem('workflow_is_logged_in') === 'true';
+      });
+
+      const [loginUser, setLoginUser] = useState('');
+      const [loginPass, setLoginPass] = useState('');
+      const [loginError, setLoginError] = useState('');
+
+      // === DATOS DE LA APLICACIÓN ===
       const [shifts, setShifts] = useState(() => {
         const saved = localStorage.getItem('work_schedule_shifts_v2');
         if (saved) {
           try { return JSON.parse(saved); } catch (e) { console.error(e); }
         }
         
-        // Datos demo iniciales para Mayo 2026
+        // Datos demo iniciales para Mayo 2026 basados en el Excel del usuario
         return {
           '2026-05-01': { type: 'holiday', notes: 'Día del Trabajador (Festivo Nacional)' },
           '2026-05-04': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: false, flexHours: 0, notes: 'Turno de mañana' },
-          '2026-05-05': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: true, flexHours: 1, notes: 'Plan Flex (+1 hora recuperada para viernes)' },
+          '2026-05-05': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: true, flexHours: 1, notes: 'Plan Flex (+1 hora recuperada)' },
           '2026-05-06': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: true, flexHours: 0, notes: 'Enfoque técnico' },
           '2026-05-07': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: false, flexHours: 0, notes: 'Presencial' },
-          '2026-05-08': { type: 'work', startTime: '08:00', endTime: '15:00', breakMinutes: 45, teletrabajo: true, flexHours: -1, notes: 'Plan Flex (-1 hora, salgo antes por tener saldo)' },
+          '2026-05-08': { type: 'work', startTime: '08:00', endTime: '15:00', breakMinutes: 45, teletrabajo: true, flexHours: -1, notes: 'Plan Flex (-1 hora, salida temprana)' },
           '2026-05-11': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: true, flexHours: 0, notes: 'Semana de mañana' },
           '2026-05-12': { type: 'work', startTime: '08:00', endTime: '16:00', breakMinutes: 45, teletrabajo: false, flexHours: 0, notes: 'Oficina' },
           '2026-05-15': { type: 'holiday', notes: 'San Isidro (Festivo local Madrid)' },
@@ -125,7 +147,7 @@
         return localStorage.getItem('work_schedule_sheets_url') || '';
       });
 
-      // Configuración de usuario y contraseña para el Google Sheet
+      // Credenciales locales / sincronización
       const [sheetUser, setSheetUser] = useState(() => {
         return localStorage.getItem('work_schedule_sheet_user') || 'admin';
       });
@@ -139,7 +161,7 @@
       });
 
       const [activeTab, setActiveTab] = useState('dashboard');
-      const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 19)); 
+      const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 19)); // Forzado a Mayo de 2026 por defecto
       const [selectedDateStr, setSelectedDateStr] = useState('');
       
       const [isEditing, setIsEditing] = useState(false);
@@ -153,10 +175,32 @@
         notes: ''
       });
 
-      // Modales customizados para evitar el uso de alert/confirm del navegador
+      // Modales de confirmación
       const [showResetConfirm, setShowResetConfirm] = useState(false);
       const [notification, setNotification] = useState('');
       const [syncLoading, setSyncLoading] = useState(false);
+
+      // Listas para selectores de fecha en cabecera
+      const monthsList = [
+        { value: 0, label: 'Enero' },
+        { value: 1, label: 'Febrero' },
+        { value: 2, label: 'Marzo' },
+        { value: 3, label: 'Abril' },
+        { value: 4, label: 'Mayo' },
+        { value: 5, label: 'Junio' },
+        { value: 6, label: 'Julio' },
+        { value: 7, label: 'Agosto' },
+        { value: 8, label: 'Septiembre' },
+        { value: 9, label: 'Octubre' },
+        { value: 10, label: 'Noviembre' },
+        { value: 11, label: 'Diciembre' }
+      ];
+
+      // Generar 16 años (desde 2020 hasta 2035) para cumplir con "al menos unos 10 años"
+      const yearsList = [];
+      for (let y = 2020; y <= 2035; y++) {
+        yearsList.push(y);
+      }
 
       useEffect(() => {
         localStorage.setItem('work_schedule_shifts_v2', JSON.stringify(shifts));
@@ -181,6 +225,61 @@
       const showToast = (msg) => {
         setNotification(msg);
         setTimeout(() => setNotification(''), 4000);
+      };
+
+      // === GESTIÓN DE ACCESO (LOGIN / LOGOUT) ===
+      const handleLoginSubmit = (e) => {
+        e.preventDefault();
+        if (loginUser.trim() === sheetUser.trim() && loginPass.trim() === sheetPassword.trim()) {
+          setIsLoggedIn(true);
+          sessionStorage.setItem('workflow_is_logged_in', 'true');
+          setLoginError('');
+          showToast('Sesión iniciada con éxito. ¡Bienvenido de nuevo!');
+        } else {
+          setLoginError('Usuario o contraseña incorrectos. Verifica tus credenciales.');
+        }
+      };
+
+      const handleQuickDemoAccess = () => {
+        setLoginUser(sheetUser);
+        setLoginPass(sheetPassword);
+        setIsLoggedIn(true);
+        sessionStorage.setItem('workflow_is_logged_in', 'true');
+        setLoginError('');
+        showToast('Acceso de demostración concedido.');
+      };
+
+      const handleLogout = () => {
+        setIsLoggedIn(false);
+        sessionStorage.setItem('workflow_is_logged_in', 'false');
+        setLoginUser('');
+        setLoginPass('');
+        showToast('Sesión cerrada correctamente.');
+      };
+
+      // === MANIPULACIÓN DE FECHAS ===
+      const handleMonthSelect = (e) => {
+        const newMonth = parseInt(e.target.value, 10);
+        setCurrentDate(new Date(currentDate.getFullYear(), newMonth, 1));
+      };
+
+      const handleYearSelect = (e) => {
+        const newYear = parseInt(e.target.value, 10);
+        setCurrentDate(new Date(newYear, currentDate.getMonth(), 1));
+      };
+
+      const handlePrevMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+      };
+
+      const handleNextMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+      };
+
+      const handleGoToToday = () => {
+        // Regresa a Mayo de 2026 (mes del anclaje y del contexto)
+        setCurrentDate(new Date(2026, 4, 19));
+        showToast('Regresaste a Mayo de 2026.');
       };
 
       // === ALGORITMO DE ROTACIÓN DE TURNOS (3 semanas) ===
@@ -373,15 +472,15 @@
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             
             if (!updated[dateStr]) {
-              const predicted = getPredictedShiftForDate(dateObj);
+              const MathPredicted = getPredictedShiftForDate(dateObj);
               updated[dateStr] = {
                 type: 'work',
-                startTime: predicted.startTime,
-                endTime: predicted.endTime,
-                breakMinutes: predicted.breakMinutes,
+                startTime: MathPredicted.startTime,
+                endTime: MathPredicted.endTime,
+                breakMinutes: MathPredicted.breakMinutes,
                 teletrabajo: false,
                 flexHours: 0,
-                notes: `Auto-rellenado: ${predicted.name}`
+                notes: `Auto-rellenado: ${MathPredicted.name}`
               };
               addedCount++;
             }
@@ -573,9 +672,103 @@
         return days;
       };
 
+      // ================= RENDERIZADO CONDICIONAL DE PANTALLA DE LOGIN =================
+      if (!isLoggedIn) {
+        return (
+          <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4">
+            {/* Toast en el Login */}
+            {notification && (
+              <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-slideIn border border-slate-800">
+                <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-ping"></div>
+                <span className="text-sm font-semibold">{notification}</span>
+              </div>
+            )}
+
+            <div className="max-w-md w-full bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden p-8 space-y-6 animate-scaleUp">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="p-4 bg-orange-600 rounded-2xl text-white shadow-xl shadow-orange-950/50">
+                  <KeyIcon />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black text-white">WorkFlow Pro</h1>
+                  <p className="text-xs text-orange-500 font-extrabold tracking-widest uppercase mt-1">Portal de Acceso Orange</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleLoginSubmit} className="space-y-4 pt-4">
+                {loginError && (
+                  <div className="p-3 bg-red-900/30 border border-red-900 text-red-200 text-xs font-semibold rounded-xl text-center">
+                    ⚠️ {loginError}
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Usuario corporativo</label>
+                  <input 
+                    type="text"
+                    required
+                    value={loginUser}
+                    onChange={(e) => setLoginUser(e.target.value)}
+                    placeholder="Ej: admin"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-slate-600"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Contraseña</label>
+                  <input 
+                    type="password"
+                    required
+                    value={loginPass}
+                    onChange={(e) => setLoginPass(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-slate-600"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full py-3.5 bg-orange-600 hover:bg-orange-500 text-white font-black rounded-xl text-sm transition-all shadow-lg shadow-orange-950/30 cursor-pointer"
+                >
+                  Iniciar Sesión
+                </button>
+              </form>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <button 
+                  onClick={handleQuickDemoAccess}
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-orange-400 font-bold rounded-xl text-xs transition-all border border-slate-700/60 cursor-pointer"
+                >
+                  ✨ Acceso de Demostración Rápido (Un Clic)
+                </button>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800/80 text-center">
+                <p className="text-[10px] text-slate-500 font-medium">
+                  🔑 Nota: Puedes modificar tu usuario y contraseña en tu base de datos de Google Sheets o dentro de los ajustes de integración de la app.
+                </p>
+              </div>
+            </div>
+
+            <footer className="mt-8 text-center text-xs text-slate-600 font-bold">
+              <p>© 2026 WorkFlow Pro. Orange Corporate Authentication.</p>
+            </footer>
+          </div>
+        );
+      }
+
+      // ================= APLICACIÓN PRINCIPAL (LOGGED IN) =================
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col">
-          {/* Header principal */}
+          {/* Notificación Toast */}
+          {notification && (
+            <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-slideIn">
+              <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-ping"></div>
+              <span className="text-sm font-semibold">{notification}</span>
+            </div>
+          )}
+
+          {/* HEADER */}
           <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-3">
@@ -587,53 +780,123 @@
                   <p className="text-xs text-slate-500 font-semibold flex items-center gap-1.5">
                     <span>Horarios Rotativos y Calendario Flex</span>
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                    <span className="text-orange-600 font-bold">Mayo 2026</span>
+                    <span className="text-orange-600 font-bold">
+                      {currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+                    </span>
                   </p>
                 </div>
               </div>
 
-              {/* Navegación de pestañas */}
-              <nav className="flex flex-wrap bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-1">
+              {/* Menú de Navegación e Inicio/Cierre de Sesión */}
+              <div className="flex flex-wrap lg:flex-nowrap items-center gap-3">
+                <nav className="flex flex-wrap bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-1">
+                  <button 
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
+                  >
+                    <ChartIcon /> Resumen
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('calendar')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
+                  >
+                    <CalendarIcon /> Calendario
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('stats')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'stats' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
+                  >
+                    <PalmTreeIcon /> Métricas & Balance
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('integration')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'integration' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
+                  >
+                    <CloudIcon /> Integración
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('settings')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
+                  >
+                    <SettingsIcon /> Ajustes
+                  </button>
+                </nav>
+
                 <button 
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-950'}`}
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-sm shadow-slate-950/20"
+                  title="Cerrar sesión segura"
                 >
-                  <ChartIcon /> Resumen
+                  <LogoutIcon /> Salir
                 </button>
-                <button 
-                  onClick={() => setActiveTab('calendar')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
-                >
-                  <CalendarIcon /> Calendario
-                </button>
-                <button 
-                  onClick={() => setActiveTab('stats')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'stats' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
-                >
-                  <PalmTreeIcon /> Métricas & Balance
-                </button>
-                <button 
-                  onClick={() => setActiveTab('integration')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'integration' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
-                >
-                  <CloudIcon /> Integración
-                </button>
-                <button 
-                  onClick={() => setActiveTab('settings')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600 hover:text-slate-955'}`}
-                >
-                  <SettingsIcon /> Ajustes
-                </button>
-              </nav>
+              </div>
             </div>
           </header>
 
-          {/* Contenido principal */}
+          {/* CONTENIDO */}
           <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
             
-            {/* TAB 1: DASHBOARD */}
+            {/* Selector de Mes / Año Global Rápido en cabecera del contenido */}
+            <div className="mb-6 bg-white border border-slate-200 rounded-3xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handlePrevMonth}
+                  className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-orange-50 hover:text-orange-600 transition-colors shadow-xs"
+                  title="Mes anterior"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                
+                {/* Selector Desplegable de Meses */}
+                <select 
+                  value={currentDate.getMonth()} 
+                  onChange={handleMonthSelect}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer"
+                >
+                  {monthsList.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+
+                {/* Selector Desplegable de Años (Historial de 15 Años) */}
+                <select 
+                  value={currentDate.getFullYear()} 
+                  onChange={handleYearSelect}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer"
+                >
+                  {yearsList.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+
+                <button 
+                  onClick={handleNextMonth}
+                  className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-orange-50 hover:text-orange-600 transition-colors shadow-xs"
+                  title="Mes siguiente"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleGoToToday}
+                  className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-800 text-xs font-black rounded-xl transition-all shadow-xs"
+                >
+                  Regresar a Mayo 2026
+                </button>
+              </div>
+            </div>
+
+            {/* ================= TAB 1: DASHBOARD ================= */}
             {activeTab === 'dashboard' && (
               <div className="space-y-8 animate-fadeIn">
+                
+                {/* Información del Estado de Rotación y Hoy */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 space-y-2">
                     <span className="px-3 py-1 bg-orange-100 text-orange-800 font-extrabold rounded-lg text-xs uppercase tracking-wide">
@@ -658,8 +921,10 @@
                   </div>
                 </div>
 
-                {/* Métricas rápidas */}
+                {/* Tarjetas de Métricas del periodo seleccionado */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  
+                  {/* Horas de trabajo */}
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-5">
                     <div className="p-4 bg-orange-50 rounded-2xl text-orange-600">
                       <ClockIcon />
@@ -671,6 +936,7 @@
                     </div>
                   </div>
 
+                  {/* Días teletrabajados */}
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-5">
                     <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-600">
                       <HomeIcon />
@@ -682,6 +948,7 @@
                     </div>
                   </div>
 
+                  {/* Días vacaciones */}
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-5">
                     <div className="p-4 bg-amber-50 rounded-2xl text-amber-600">
                       <PalmTreeIcon />
@@ -693,6 +960,7 @@
                     </div>
                   </div>
 
+                  {/* Balance Plan Flex */}
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-5">
                     <div className="p-4 bg-orange-50 rounded-2xl text-orange-600">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -709,10 +977,12 @@
                   </div>
                 </div>
 
-                {/* Lista de registros */}
+                {/* Listado de Últimos Turnos Registrados */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-slate-950">Últimos registros de este mes (Mayo 2026)</h3>
+                    <h3 className="text-lg font-bold text-slate-950">
+                      Registros activos de {currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+                    </h3>
                     {googleSheetsUrl && (
                       <button 
                         onClick={handleExportToSheets}
@@ -728,7 +998,7 @@
                     {Object.entries(shifts)
                       .filter(([dateStr]) => {
                         const [y, m] = dateStr.split('-').map(Number);
-                        return y === 2026 && m === 5;
+                        return y === currentDate.getFullYear() && (m - 1) === currentDate.getMonth();
                       })
                       .sort((a, b) => b[0].localeCompare(a[0])) 
                       .map(([dateStr, data]) => {
@@ -805,12 +1075,12 @@
               </div>
             )}
 
-            {/* TAB 2: CALENDARIO */}
+            {/* ================= TAB 2: CALENDARIO ================= */}
             {activeTab === 'calendar' && (
               <div className="space-y-6 animate-fadeIn">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
                   <h2 className="text-xl font-black text-slate-900 capitalize">
-                    {currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+                    Vista Mensual: {currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
                   </h2>
                   <button 
                     onClick={handleAutofillMonthRotation}
@@ -846,7 +1116,7 @@
               </div>
             )}
 
-            {/* TAB 3: ESTADÍSTICAS */}
+            {/* ================= TAB 3: ESTADÍSTICAS ================= */}
             {activeTab === 'stats' && (
               <div className="space-y-8 animate-fadeIn">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
@@ -858,7 +1128,7 @@
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
                     <div>
                       <h3 className="text-lg font-bold text-slate-900">Cumplimiento de Jornada</h3>
-                      <p className="text-xs text-slate-400 mt-1">Horas estimadas mensuales recomendadas</p>
+                      <p className="text-xs text-slate-400 mt-1">Horas de trabajo mensuales recomendadas</p>
                     </div>
                     <div className="my-8">
                       <div className="flex justify-between items-end mb-2">
@@ -898,7 +1168,7 @@
               </div>
             )}
 
-            {/* TAB 4: INTEGRACIÓN */}
+            {/* ================= TAB 4: INTEGRACIÓN ================= */}
             {activeTab === 'integration' && (
               <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
@@ -914,7 +1184,7 @@
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Usuario de Sheets (Configuración):</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Usuario de Sheets y Aplicación (Local):</label>
                       <input 
                         type="text" 
                         value={sheetUser}
@@ -924,7 +1194,7 @@
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Contraseña de Sheets (Configuración):</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Contraseña de Sheets y Aplicación (Local):</label>
                       <input 
                         type="password" 
                         value={sheetPassword}
@@ -957,20 +1227,19 @@
                   )}
                 </div>
 
-                {/* Nuevo Código de Apps Script con Validación de Credenciales */}
+                {/* Código de Apps Script */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                   <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <span>📄 Nuevo Código de Google Apps Script (Soporta Validación)</span>
+                    <span>📄 Código de Google Apps Script</span>
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Borra el script anterior en tu cuenta de Google Apps Script, pega este nuevo bloque de código que gestiona automáticamente la pestaña de **Configuración** y la pestaña de **Turnos**, y pulsa **Implementar / Deploy**.
+                    Sincroniza tus turnos de manera segura en tu Sheets. Asegúrate de tener las pestañas de <strong>Turnos</strong> y de <strong>Configuración</strong> en tu documento.
                   </p>
 
-                  <pre className="bg-slate-900 text-slate-200 text-xs p-4 rounded-xl overflow-x-auto font-mono leading-relaxed max-h-[350px] overflow-y-auto">
+                  <pre className="bg-slate-900 text-slate-200 text-xs p-4 rounded-xl overflow-x-auto font-mono leading-relaxed max-h-[250px] overflow-y-auto">
 {`function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Asegurar la existencia de la hoja de Configuración de seguridad de manera segura
   var configSheet = ss.getSheetByName("Configuración");
   if (!configSheet) {
     configSheet = ss.insertSheet("Configuración");
@@ -979,7 +1248,6 @@
     configSheet.appendRow(["Contraseña", "admin123"]);
   }
   
-  // Leer credenciales activas guardadas en la hoja "Configuración"
   var configData = configSheet.getDataRange().getValues();
   var storedUser = "admin";
   var storedPass = "admin123";
@@ -988,7 +1256,6 @@
     if (configData[i][0] === "Contraseña" && configData[i][1]) storedPass = configData[i][1];
   }
   
-  // 2. Parsear el payload JSON de manera segura evaluando posibles fallos de parseo
   var receivedUser = "";
   var receivedPass = "";
   var shifts = [];
@@ -1003,13 +1270,11 @@
       .setMimeType(ContentService.MimeType.JSON);
   }
   
-  // Validar si las credenciales coinciden
   if (receivedUser.toString().trim() !== storedUser.toString().trim() || receivedPass.toString().trim() !== storedPass.toString().trim()) {
     return ContentService.createTextOutput(JSON.stringify({ "status": "error", "message": "Acceso Denegado: Usuario o contraseña incorrectos en la pestaña Configuración." }))
       .setMimeType(ContentService.MimeType.JSON);
   }
   
-  // 3. Sincronizar los turnos en la pestaña "Turnos"
   var shiftsSheet = ss.getSheetByName("Turnos");
   if (!shiftsSheet) {
     shiftsSheet = ss.insertSheet("Turnos");
@@ -1033,15 +1298,12 @@
     ]);
   }
   
-  // Eliminar la "Hoja 1" o "Sheet1" por defecto de forma segura solo si hay otra pestaña creada
   try {
     var defaultSheet = ss.getSheetByName("Hoja 1") || ss.getSheetByName("Sheet1");
     if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
       ss.deleteSheet(defaultSheet);
     }
-  } catch (err) {
-    // Silenciar error en caso de que no se pueda eliminar
-  }
+  } catch (err) {}
   
   return ContentService.createTextOutput(JSON.stringify({ "status": "success", "message": "Turnos sincronizados correctamente." }))
     .setMimeType(ContentService.MimeType.JSON);
@@ -1051,11 +1313,11 @@
               </div>
             )}
 
-            {/* TAB 5: CONFIGURACIÓN / AJUSTES */}
+            {/* ================= TAB 5: CONFIGURACIÓN / AJUSTES ================= */}
             {activeTab === 'settings' && (
               <div className="max-w-2xl mx-auto space-y-8 animate-fadeIn">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                  <h3 className="text-lg font-extrabold text-slate-900">🎯 Objetivo mensual de horas (Mayo 2026)</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900">🎯 Objetivo mensual de horas ({currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })})</h3>
                   <p className="text-xs text-slate-500">Ajusta las horas objetivo recomendadas para este mes para calcular el porcentaje de cumplimiento.</p>
                   <input 
                     type="number" 
@@ -1155,7 +1417,7 @@
           {/* CUSTOM CONFIRM MODAL PARA EVITAR ALERT() NATIVOS */}
           {showResetConfirm && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-3xl max-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 animate-scaleUp">
+              <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 animate-scaleUp">
                 <h3 className="text-lg font-extrabold text-slate-900">¿Estás seguro?</h3>
                 <p className="text-sm text-slate-500">Esta acción borrará de manera definitiva todos los turnos del calendario registrados en este navegador.</p>
                 <div className="flex gap-3 pt-2">
