@@ -349,7 +349,7 @@
           type: 'work',
           startTime: predicted.startTime,
           endTime: predicted.endTime,
-          breakMinutes: predicted.breakMinutes,
+          breakMinutes: Math.max(0, predicted.breakMinutes),
           teletrabajo: false,
           flexHours: 0,
           notes: `Confirmación rápida: ${predicted.name}`
@@ -970,7 +970,7 @@
 {`function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Asegurar la existencia de la hoja de Configuración de seguridad
+  // 1. Asegurar la existencia de la hoja de Configuración de seguridad de manera segura
   var configSheet = ss.getSheetByName("Configuración");
   if (!configSheet) {
     configSheet = ss.insertSheet("Configuración");
@@ -981,25 +981,35 @@
   
   // Leer credenciales activas guardadas en la hoja "Configuración"
   var configData = configSheet.getDataRange().getValues();
-  var storedUser = "";
-  var storedPass = "";
+  var storedUser = "admin";
+  var storedPass = "admin123";
   for (var i = 1; i < configData.length; i++) {
-    if (configData[i][0] === "Usuario") storedUser = configData[i][1];
-    if (configData[i][0] === "Contraseña") storedPass = configData[i][1];
+    if (configData[i][0] === "Usuario" && configData[i][1]) storedUser = configData[i][1];
+    if (configData[i][0] === "Contraseña" && configData[i][1]) storedPass = configData[i][1];
   }
   
-  // 2. Parsear el payload JSON enviado desde el cliente
-  var data = JSON.parse(e.postData.contents);
-  var receivedUser = data.username || "";
-  var receivedPass = data.password || "";
+  // 2. Parsear el payload JSON de manera segura evaluando posibles fallos de parseo
+  var receivedUser = "";
+  var receivedPass = "";
+  var shifts = [];
+  
+  try {
+    var data = JSON.parse(e.postData.contents);
+    receivedUser = data.username || "";
+    receivedPass = data.password || "";
+    shifts = data.shifts || [];
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ "status": "error", "message": "No se pudo interpretar el envío de datos." }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
   
   // Validar si las credenciales coinciden
-  if (receivedUser.toString() !== storedUser.toString() || receivedPass.toString() !== storedPass.toString()) {
+  if (receivedUser.toString().trim() !== storedUser.toString().trim() || receivedPass.toString().trim() !== storedPass.toString().trim()) {
     return ContentService.createTextOutput(JSON.stringify({ "status": "error", "message": "Acceso Denegado: Usuario o contraseña incorrectos en la pestaña Configuración." }))
       .setMimeType(ContentService.MimeType.JSON);
   }
   
-  // 3. Si las credenciales son válidas, sincronizar los turnos en la pestaña "Turnos"
+  // 3. Sincronizar los turnos en la pestaña "Turnos"
   var shiftsSheet = ss.getSheetByName("Turnos");
   if (!shiftsSheet) {
     shiftsSheet = ss.insertSheet("Turnos");
@@ -1008,7 +1018,6 @@
   shiftsSheet.clearContents();
   shiftsSheet.appendRow(["Fecha", "Tipo de Jornada", "Hora Inicio", "Hora Fin", "Minutos Descanso", "Teletrabajo", "Horas Flex", "Total Horas", "Notas"]);
   
-  var shifts = data.shifts;
   for (var j = 0; j < shifts.length; j++) {
     var item = shifts[j];
     shiftsSheet.appendRow([
@@ -1020,14 +1029,18 @@
       item.teletrabajo,
       item.flex,
       item.total_horas,
-      item.notas
+      item.notes || ""
     ]);
   }
   
-  // Opcional: Eliminar la "Hoja 1" inicial por defecto si está vacía
-  var defaultSheet = ss.getSheetByName("Hoja 1") || ss.getSheetByName("Sheet1");
-  if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
-    ss.deleteSheet(defaultSheet);
+  // Eliminar la "Hoja 1" o "Sheet1" por defecto de forma segura solo si hay otra pestaña creada
+  try {
+    var defaultSheet = ss.getSheetByName("Hoja 1") || ss.getSheetByName("Sheet1");
+    if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
+      ss.deleteSheet(defaultSheet);
+    }
+  } catch (err) {
+    // Silenciar error en caso de que no se pueda eliminar
   }
   
   return ContentService.createTextOutput(JSON.stringify({ "status": "success", "message": "Turnos sincronizados correctamente." }))
